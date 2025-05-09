@@ -96,14 +96,35 @@ st.title("📏 Stock Cut Optimizer (Feet + Inches)")
 
 stock_length_input = st.text_input("Stock Length", value="12'")
 kerf_input = st.text_input("Kerf", value='1/8"')
-cuts_input = st.text_area("Enter Cuts (one per line)", value="")
+cuts_input = st.text_area("Enter Cuts (one per line)", value="4'
+2' 6"
+3' 2.5"
+")
 
 if st.button("Optimize"):
     try:
         stock_length = parse_length(stock_length_input)
         kerf = parse_length(kerf_input)
 
-        cuts = [parse_length(line.strip()) for line in cuts_input.strip().splitlines() if line.strip()]
+        cuts = []
+        invalid_cuts = []
+        for line in cuts_input.strip().splitlines():
+            if not line.strip():
+                continue
+            try:
+                length = parse_length(line.strip())
+                if length > stock_length:
+                    invalid_cuts.append((line.strip(), length))
+                else:
+                    cuts.append(length)
+            except Exception as e:
+                st.warning(f"Could not parse line: '{line.strip()}' ({e})")
+
+        if invalid_cuts:
+            st.warning(f"The following cuts were longer than the stock length ({format_feet_inches(stock_length)}) and were omitted:")
+            for text, val in invalid_cuts:
+                st.text(f"  - {text} ({format_feet_inches(val)})")
+
         result, waste, used = fit_cuts_to_stock(stock_length, kerf, cuts)
 
         st.success(f"Total stock pieces used: {len(result)}")
