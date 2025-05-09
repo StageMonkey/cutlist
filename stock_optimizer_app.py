@@ -96,10 +96,7 @@ st.title("📏 Stock Cut Optimizer (Feet + Inches)")
 
 stock_length_input = st.text_input("Stock Length", value="12'")
 kerf_input = st.text_input("Kerf", value='1/8"')
-cuts_input = st.text_area("Enter Cuts (one per line)", value="4'
-2' 6"
-3' 2.5"
-")
+cuts_input = st.text_area("Enter Cuts (one per line)", value="")
 
 if st.button("Optimize"):
     try:
