@@ -1,4 +1,3 @@
-
 import streamlit as st
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -9,9 +8,9 @@ from fractions import Fraction
 # --- Conversion utilities ---
 
 def parse_length(length_str):
-    length_str = length_str.strip().lower().replace('feet', "'").replace('foot', "'").replace('ft', "'").replace('inches', '\"').replace('inch', '\"').replace('in', '\"')
+    length_str = length_str.strip().lower().replace('feet', "'").replace('foot', "'").replace('ft', "'").replace('inches', '"').replace('inch', '"').replace('in', '"')
     ft, inch = 0, 0
-    match = re.match(r"(?:(\d+)\')?\s*(\d+)?(?:\s*(\d+/\d+))?\s*(?:\"|in)?", length_str)
+    match = re.match(r"(?:(\d+)')?\s*(\d+)?(?:\s*(\d+/\d+))?\s*(?:\"|in)?", length_str)
     if match:
         if match.group(1): ft = int(match.group(1))
         if match.group(2): inch += int(match.group(2))
@@ -20,17 +19,25 @@ def parse_length(length_str):
         raise ValueError(f"Invalid format: '{length_str}'")
     return ft + inch / 12
 
-def format_feet_inches(value, precision=16):
-    feet = int(value)
-    inches = (value - feet) * 12
+def format_feet_inches(value, precision=32):
+    total_inches = round(value * 12, 4)
+    feet = int(total_inches // 12)
+    inches = total_inches - feet * 12
     whole_inches = int(inches)
     frac = inches - whole_inches
-    frac_str = ""
-    if frac:
-        frac = round(Fraction(frac).limit_denominator(precision))
-        if frac.numerator != 0:
-            frac_str = f" {frac.numerator}/{frac.denominator}"
-    inch_str = f"{whole_inches}{frac_str}\"" if whole_inches or frac_str else ""
+    frac_rounded = Fraction(frac).limit_denominator(precision)
+
+    if frac_rounded.numerator == frac_rounded.denominator:
+        whole_inches += 1
+        frac_rounded = Fraction(0, 1)
+
+    if whole_inches >= 12:
+        feet += 1
+        whole_inches -= 12
+
+    frac_str = f" {frac_rounded.numerator}/{frac_rounded.denominator}" if frac_rounded.numerator != 0 else ""
+    inch_str = f"{whole_inches}{frac_str}\"" if (whole_inches or frac_str) else ""
+
     return f"{feet}' {inch_str}".strip()
 
 # --- Optimization logic ---
@@ -96,7 +103,7 @@ st.title("📏 Stock Cut Optimizer (Feet + Inches)")
 
 stock_length_input = st.text_input("Stock Length", value="12'")
 kerf_input = st.text_input("Kerf", value='1/8"')
-cuts_input = st.text_area("Enter Cuts (one per line)", value="")
+cuts_input = st.text_area("Enter Cuts (one per line)", value="4' 3\"\n2' 7 1/2\"\n5'\n8 3/4\"")
 
 if st.button("Optimize"):
     try:
