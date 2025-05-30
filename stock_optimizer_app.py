@@ -16,7 +16,11 @@ def parse_length(length_str):
         if match.group(2): inch += int(match.group(2))
         if match.group(3): inch += float(Fraction(match.group(3)))
     else:
-        raise ValueError(f"Invalid format: '{length_str}'")
+        # Fallback for standalone fractions like "1/8" with no unit — assume inches
+        try:
+            inch = float(Fraction(length_str))
+        except:
+            raise ValueError(f"Invalid format: '{length_str}'")
     return ft + inch / 12
 
 def format_feet_inches(value, precision=32):
