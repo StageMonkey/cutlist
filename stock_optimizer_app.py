@@ -12,11 +12,10 @@ def parse_length(length_str):
     length_str = length_str.replace('feet', "'").replace('foot', "'").replace('ft', "'")
     length_str = length_str.replace('inches', '"').replace('inch', '"').replace('in', '"')
 
-    # If only a fraction is entered, handle separately
+    # Handle fraction-only inputs like "1/8\""
     if re.fullmatch(r"\d+/\d+\"?", length_str):
-        return float(Fraction(length_str.strip(' "'))) / 12  # inches to feet
+        return float(Fraction(length_str.strip(' \"'))) / 12
 
-    # Match optional feet, optional inches, optional fraction
     match = re.match(r"(?:(\d+)')?\s*(\d+)?(?:\s+(\d+/\d+))?\s*(?:\"|in)?", length_str)
     if not match:
         raise ValueError(f"Invalid format: '{length_str}'")
@@ -26,9 +25,10 @@ def parse_length(length_str):
     frac = float(Fraction(match.group(3))) if match.group(3) else 0
 
     total_inches = feet * 12 + inches + frac
-    return total_inches / 12  # return in feet
+    return total_inches / 12
+
 def format_feet_inches(value, precision=32):
-    total_inches = round(value * 12, 5)
+    total_inches = round(value * 12, 4)
     feet = int(total_inches // 12)
     inches = total_inches - feet * 12
     whole_inches = int(inches)
@@ -74,8 +74,8 @@ def fit_cuts_to_stock(stock_length, kerf, cuts):
             bins[best_fit_index].append(original_cut)
             bin_usage[best_fit_index] += cut_with_k
 
-    wastes = [round(stock_length - usage, 5) for usage in bin_usage]
-    used_lengths = [round(usage, 5) for usage in bin_usage]
+    wastes = [round(stock_length - usage, 4) for usage in bin_usage]
+    used_lengths = [round(usage, 4) for usage in bin_usage]
     return bins, wastes, used_lengths
 
 def plot_cutting_layout(cuts_to_stock, kerf, stock_length):
@@ -109,10 +109,10 @@ def plot_cutting_layout(cuts_to_stock, kerf, stock_length):
 
 st.title("📏 Stock Cut Optimizer (Feet + Inches)")
 
-project_name = st.text_input("Project Name", value="My Project")
+project_name = st.text_input("Project Name", value="Untitled Project")
 stock_length_input = st.text_input("Stock Length", value="12'")
 kerf_input = st.text_input("Kerf", value='1/8"')
-cuts_input = st.text_area("Enter Cuts (e.g., '3 @ 2' 4 1/2\") — one per line", value="2 @ 4' 3\"\n1 @ 2' 7 1/2\"\n5'")
+cuts_input = st.text_area("Enter Cuts (one per line)", value="4' 3\"\n2' 7 1/2\"\n5'\n8 3/4\"")
 
 if st.button("Optimize"):
     try:
@@ -124,20 +124,12 @@ if st.button("Optimize"):
         for line in cuts_input.strip().splitlines():
             if not line.strip():
                 continue
-            qty_match = re.match(r"(\d+)\s*[@~]\s*(.+)", line.strip())
-            if qty_match:
-                qty = int(qty_match.group(1))
-                length_str = qty_match.group(2).strip()
-            else:
-                qty = 1
-                length_str = line.strip()
-
             try:
-                length = parse_length(length_str)
+                length = parse_length(line.strip())
                 if length > stock_length:
                     invalid_cuts.append((line.strip(), length))
                 else:
-                    cuts.extend([length] * qty)
+                    cuts.append(length)
             except Exception as e:
                 st.warning(f"Could not parse line: '{line.strip()}' ({e})")
 
@@ -148,9 +140,12 @@ if st.button("Optimize"):
 
         result, waste, used = fit_cuts_to_stock(stock_length, kerf, cuts)
 
+        st.subheader(f"Project: {project_name}")
+        st.markdown(f"**Stock Length**: {format_feet_inches(stock_length)}")
+        st.markdown(f"**Kerf**: {format_feet_inches(kerf)}")
+
         st.success(f"Total stock pieces used: {len(result)}")
         df = pd.DataFrame({
-            "Project": project_name,
             "Stock #": [f"Stock {i+1}" for i in range(len(result))],
             "Cuts": [", ".join(format_feet_inches(c) for c in r) for r in result],
             "Used Length": [format_feet_inches(u) for u in used],
@@ -162,19 +157,18 @@ if st.button("Optimize"):
         fig = plot_cutting_layout(result, kerf, stock_length)
         st.pyplot(fig)
 
-       # Create CSV with header details above the table
-project_name = project_name.strip() if project_name else "Untitled Project"
-csv_header = [
-    f"Project: {project_name}",
-    f"Stock Length: {format_feet_inches(stock_length)}",
-    f"Kerf: {format_feet_inches(kerf)}",
-    "",  # Blank line before table
-]
+        # Updated CSV generation with header lines
+        csv_header = [
+            f"Project: {project_name}",
+            f"Stock Length: {format_feet_inches(stock_length)}",
+            f"Kerf: {format_feet_inches(kerf)}",
+            ""
+        ]
+        csv_data = df.to_csv(index=False)
+        full_csv = "\n".join(csv_header) + "\n" + csv_data
+        csv_bytes = full_csv.encode('utf-8')
 
-csv_data = df.to_csv(index=False)
-full_csv = "\n".join(csv_header) + "\n" + csv_data
-csv_bytes = full_csv.encode('utf-8')
+        st.download_button("Download CSV", csv_bytes, file_name="cut_plan.csv", mime="text/csv")
 
-st.download_button("Download CSV", csv_bytes, file_name="cut_plan.csv", mime="text/csv")
     except Exception as e:
         st.error(f"Error: {e}")
