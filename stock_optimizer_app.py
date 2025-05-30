@@ -8,24 +8,16 @@ from fractions import Fraction
 # --- Conversion utilities ---
 
 def parse_length(length_str):
-    length_str = length_str.strip().lower()
-    length_str = length_str.replace('feet', "'").replace('foot', "'").replace('ft', "'")
-    length_str = length_str.replace('inches', '"').replace('inch', '"').replace('in', '"')
-
-    # Handle fraction-only inputs like "1/8\""
-    if re.fullmatch(r"\d+/\d+\"?", length_str):
-        return float(Fraction(length_str.strip(' \"'))) / 12
-
-    match = re.match(r"(?:(\d+)')?\s*(\d+)?(?:\s+(\d+/\d+))?\s*(?:\"|in)?", length_str)
-    if not match:
+    length_str = length_str.strip().lower().replace('feet', "'").replace('foot', "'").replace('ft', "'").replace('inches', '"').replace('inch', '"').replace('in', '"')
+    ft, inch = 0, 0
+    match = re.match(r"(?:(\d+)')?\s*(\d+)?(?:\s*(\d+/\d+))?\s*(?:\"|in)?", length_str)
+    if match:
+        if match.group(1): ft = int(match.group(1))
+        if match.group(2): inch += int(match.group(2))
+        if match.group(3): inch += float(Fraction(match.group(3)))
+    else:
         raise ValueError(f"Invalid format: '{length_str}'")
-
-    feet = int(match.group(1)) if match.group(1) else 0
-    inches = int(match.group(2)) if match.group(2) else 0
-    frac = float(Fraction(match.group(3))) if match.group(3) else 0
-
-    total_inches = feet * 12 + inches + frac
-    return total_inches / 12
+    return ft + inch / 12
 
 def format_feet_inches(value, precision=32):
     total_inches = round(value * 12, 4)
@@ -109,10 +101,10 @@ def plot_cutting_layout(cuts_to_stock, kerf, stock_length):
 
 st.title("📏 Stock Cut Optimizer (Feet + Inches)")
 
-project_name = st.text_input("Project Name", value="Untitled Project")
+project_name = st.text_input("Project Name")
 stock_length_input = st.text_input("Stock Length", value="12'")
 kerf_input = st.text_input("Kerf", value='1/8"')
-cuts_input = st.text_area("Enter Cuts (one per line)", value="4' 3\"\n2' 7 1/2\"\n5'\n8 3/4\"")
+cuts_input = st.text_area("Enter Cuts (one per line, use format 'Qty @ Length')", value="3 @ 4' 3\"\n2 @ 2' 7 1/2\"\n5 @ 5'\n1 @ 8 3/4\"")
 
 if st.button("Optimize"):
     try:
@@ -125,11 +117,20 @@ if st.button("Optimize"):
             if not line.strip():
                 continue
             try:
-                length = parse_length(line.strip())
-                if length > stock_length:
-                    invalid_cuts.append((line.strip(), length))
+                match = re.match(r"(\d+)\s*[@~]\s*(.*)", line.strip())
+                if match:
+                    qty = int(match.group(1))
+                    length = parse_length(match.group(2))
+                    if length > stock_length:
+                        invalid_cuts.append((line.strip(), length))
+                    else:
+                        cuts.extend([length] * qty)
                 else:
-                    cuts.append(length)
+                    length = parse_length(line.strip())
+                    if length > stock_length:
+                        invalid_cuts.append((line.strip(), length))
+                    else:
+                        cuts.append(length)
             except Exception as e:
                 st.warning(f"Could not parse line: '{line.strip()}' ({e})")
 
@@ -140,7 +141,7 @@ if st.button("Optimize"):
 
         result, waste, used = fit_cuts_to_stock(stock_length, kerf, cuts)
 
-        st.subheader(f"Project: {project_name}")
+        st.markdown(f"### Project: {project_name}")
         st.markdown(f"**Stock Length**: {format_feet_inches(stock_length)}")
         st.markdown(f"**Kerf**: {format_feet_inches(kerf)}")
 
@@ -157,18 +158,9 @@ if st.button("Optimize"):
         fig = plot_cutting_layout(result, kerf, stock_length)
         st.pyplot(fig)
 
-        # Updated CSV generation with header lines
-        csv_header = [
-            f"Project: {project_name}",
-            f"Stock Length: {format_feet_inches(stock_length)}",
-            f"Kerf: {format_feet_inches(kerf)}",
-            ""
-        ]
-        csv_data = df.to_csv(index=False)
-        full_csv = "\n".join(csv_header) + "\n" + csv_data
-        csv_bytes = full_csv.encode('utf-8')
-
-        st.download_button("Download CSV", csv_bytes, file_name="cut_plan.csv", mime="text/csv")
+        csv_header = f"Project: {project_name}\nStock Length: {format_feet_inches(stock_length)}\nKerf: {format_feet_inches(kerf)}\n\n"
+        csv = csv_header + df.to_csv(index=False)
+        st.download_button("Download CSV", csv.encode('utf-8'), "cut_plan.csv", "text/csv")
 
     except Exception as e:
         st.error(f"Error: {e}")
