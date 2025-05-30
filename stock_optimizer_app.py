@@ -162,16 +162,19 @@ if st.button("Optimize"):
         fig = plot_cutting_layout(result, kerf, stock_length)
         st.pyplot(fig)
 
-        # Metadata row for stock and kerf
-        metadata_df = pd.DataFrame([{
-            "Project": project_name,
-            "Stock Length": format_feet_inches(stock_length),
-            "Kerf": format_feet_inches(kerf)
-        }])
-        export_df = pd.concat([metadata_df, df], ignore_index=True)
+       # Create CSV with header details above the table
+project_name = project_name.strip() if project_name else "Untitled Project"
+csv_header = [
+    f"Project: {project_name}",
+    f"Stock Length: {format_feet_inches(stock_length)}",
+    f"Kerf: {format_feet_inches(kerf)}",
+    "",  # Blank line before table
+]
 
-        csv = export_df.to_csv(index=False).encode('utf-8')
-        st.download_button("Download CSV", csv, f"{project_name.replace(' ', '_')}_cut_plan.csv", "text/csv")
+csv_data = df.to_csv(index=False)
+full_csv = "\n".join(csv_header) + "\n" + csv_data
+csv_bytes = full_csv.encode('utf-8')
 
+st.download_button("Download CSV", csv_bytes, file_name="cut_plan.csv", mime="text/csv")
     except Exception as e:
         st.error(f"Error: {e}")
