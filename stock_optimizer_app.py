@@ -95,7 +95,7 @@ def fit_cuts_to_stock(stock_length, kerf, cuts):
     return bins, wastes, used_lengths
 
 def plot_cutting_layout(cuts_to_stock, kerf, stock_length):
-    fig, ax = plt.subplots(figsize=(10, len(cuts_to_stock)))
+    fig, ax = plt.subplots(figsize=(12, len(cuts_to_stock) * 1.2))
     y_height = 1
 
     for i, stock in enumerate(cuts_to_stock):
@@ -103,21 +103,44 @@ def plot_cutting_layout(cuts_to_stock, kerf, stock_length):
         for cut in stock:
             rect = patches.Rectangle((x_pos, i * y_height), cut, 0.8, edgecolor='black', facecolor='skyblue')
             ax.add_patch(rect)
-            ax.text(x_pos + cut / 2, i * y_height + 0.4, format_feet_inches(cut), ha='center', va='center', fontsize=8)
+            ax.text(x_pos + cut / 2, i * y_height + 0.4, format_feet_inches(cut), ha='center', va='center', fontsize=8, weight='bold')
             x_pos += cut
             if x_pos + kerf <= stock_length:
-                ax.add_patch(patches.Rectangle((x_pos, i * y_height), kerf, 0.8, edgecolor='red', facecolor='lightcoral', hatch='//'))
+                kerf_rect = patches.Rectangle((x_pos, i * y_height), kerf, 0.8, edgecolor='red', facecolor='lightcoral', hatch='//')
+                ax.add_patch(kerf_rect)
+                ax.text(x_pos + kerf / 2, i * y_height + 0.4, "Kerf", ha='center', va='center', fontsize=6, color='red')
                 x_pos += kerf
-        if x_pos < stock_length:
-            ax.add_patch(patches.Rectangle((x_pos, i * y_height), stock_length - x_pos, 0.8, edgecolor='gray', facecolor='lightgray'))
-            ax.text(x_pos + (stock_length - x_pos) / 2, i * y_height + 0.4, "Waste", ha='center', va='center', fontsize=8, color='gray')
 
-    ax.set_xlim(0, stock_length)
-    ax.set_ylim(0, len(cuts_to_stock))
+        # Waste section
+        if x_pos < stock_length:
+            waste_len = stock_length - x_pos
+            waste_rect = patches.Rectangle((x_pos, i * y_height), waste_len, 0.8, edgecolor='gray', facecolor='lightgray')
+            ax.add_patch(waste_rect)
+            ax.text(x_pos + waste_len / 2, i * y_height + 0.4, "Waste", ha='center', va='center', fontsize=8, color='gray')
+
+        # Summary label
+        ax.text(stock_length + 0.2, i * y_height + 0.4,
+                f"Used: {format_feet_inches(x_pos)}\nWaste: {format_feet_inches(stock_length - x_pos)}",
+                va='center', fontsize=8)
+
+    # Draw inch ruler across bottom
+    tick_height = 0.2
+    for ft in range(int(stock_length) + 1):
+        for inch in range(0, 12):
+            pos = ft + inch / 12
+            if pos > stock_length:
+                break
+            ax.plot([pos, pos], [-tick_height, 0], color='black', lw=0.5)
+            if inch == 0:
+                ax.text(pos, -0.4, f"{ft}'", ha='center', va='top', fontsize=7)
+
+    ax.set_xlim(0, stock_length + 2)
+    ax.set_ylim(-1, len(cuts_to_stock) * y_height)
     ax.set_yticks([(i + 0.4) * y_height for i in range(len(cuts_to_stock))])
     ax.set_yticklabels([f"Stock {i + 1}" for i in range(len(cuts_to_stock))])
     ax.set_xlabel("Length (ft)")
     ax.set_title("Cutting Layout Diagram")
+    ax.axis("off")
     plt.tight_layout()
     return fig
 
