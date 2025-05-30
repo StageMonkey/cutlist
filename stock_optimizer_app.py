@@ -8,21 +8,41 @@ from fractions import Fraction
 # --- Conversion utilities ---
 
 def parse_length(length_str):
-    length_str = length_str.strip().lower().replace('feet', "'").replace('foot', "'").replace('ft', "'").replace('inches', '"').replace('inch', '"').replace('in', '"')
-    ft, inch = 0, 0
-    match = re.match(r"(?:(\d+)')?\s*(\d+)?(?:\s*(\d+/\d+))?\s*(?:\"|in)?", length_str)
-    if match:
-        if match.group(1): ft = int(match.group(1))
-        if match.group(2): inch += int(match.group(2))
-        if match.group(3): inch += float(Fraction(match.group(3)))
-    else:
-        # Fallback for standalone fractions like "1/8" with no unit — assume inches
+    length_str = length_str.strip().lower()
+
+    # Normalize input
+    length_str = (
+        length_str.replace("feet", "'")
+        .replace("foot", "'")
+        .replace("ft", "'")
+        .replace("inches", '"')
+        .replace("inch", '"')
+        .replace("in", '"')
+    )
+
+    ft, inch = 0, 0.0
+
+    # Case: fraction or decimal only (assume inches)
+    if re.fullmatch(r"\d+\s*/\s*\d+", length_str) or re.fullmatch(r"\d*\.\d+", length_str):
         try:
             inch = float(Fraction(length_str))
+            return inch / 12
         except:
-            raise ValueError(f"Invalid format: '{length_str}'")
-    return ft + inch / 12
+            pass
 
+    # General parsing: handles things like 1' 2 1/2", 3'4", etc.
+    match = re.match(r"(?:(\d+)')?\s*(\d+)?(?:\s*(\d+/\d+))?\s*(?:\"|$)", length_str)
+    if match:
+        if match.group(1):  # feet
+            ft = int(match.group(1))
+        if match.group(2):  # inches
+            inch += int(match.group(2))
+        if match.group(3):  # fractional inches
+            inch += float(Fraction(match.group(3)))
+        return ft + inch / 12
+
+    raise ValueError(f"Invalid length format: '{length_str}'")
+    
 def format_feet_inches(value, precision=32):
     total_inches = round(value * 12, 4)
     feet = int(total_inches // 12)
