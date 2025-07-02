@@ -163,45 +163,45 @@ if st.button("Optimize"):
         invalid_cuts = []
         
         if uploaded_file:
-            # Load CSV as DataFrame
+            # CSV mode
             cuts_df = pd.read_csv(uploaded_file)
-            
-            st.write("✅ **Imported Cuts from CSV:**")
+            st.write("✅ Imported Cuts from CSV:")
             st.dataframe(cuts_df)
-            
+        
             for _, row in cuts_df.iterrows():
-                qty = int(row["qty"])
-                length_str = str(row["cut"]).strip()
-                
                 try:
+                    qty = int(row["qty"])
+                    length_str = str(row["cut"]).strip()
                     length = parse_length(length_str)
-                    
                     if length > stock_length:
                         invalid_cuts.append((length_str, length))
                     else:
                         cuts.extend([length] * qty)
                 except Exception as e:
-                    st.warning(f"Could not parse cut: '{length_str}' ({e})")
+                    st.warning(f"Could not parse CSV row: {row} ({e})")
         
         else:
-            # Fall back to manual text input
+            # manual text input mode
             for line in cuts_input.strip().splitlines():
                 if not line.strip():
                     continue
-                qty = 1
-                m = re.match(r"^(\\d+)\\s*[@~]\\s*(.+)$", line.strip())
-                if m:
-                    qty = int(m.group(1))
-                    length_str = m.group(2).strip()
-                else:
-                    length_str = line.strip()
-                
+        
                 try:
+                    qty = 1
+                    m = re.match(r"^(\d+)\s*[@~]\s*(.+)$", line.strip())
+                    if m:
+                        qty = int(m.group(1))
+                        length_str = m.group(2).strip()
+                    else:
+                        length_str = line.strip()
+        
                     length = parse_length(length_str)
+        
                     if length > stock_length:
                         invalid_cuts.append((length_str, length))
                     else:
                         cuts.extend([length] * qty)
+        
                 except Exception as e:
                     st.warning(f"Could not parse line: '{line.strip()}' ({e})")
         
