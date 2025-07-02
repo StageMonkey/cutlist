@@ -159,29 +159,36 @@ if st.button("Optimize"):
         stock_length = parse_length(stock_length_input)
         kerf = parse_length(kerf_input)
 
+        # -----------------------------
+        # Load cuts from CSV or text
+        # -----------------------------
+        
         cuts = []
         invalid_cuts = []
         
         if uploaded_file:
-            # CSV mode
-            cuts_df = pd.read_csv(uploaded_file)
-            st.write("✅ Imported Cuts from CSV:")
-            st.dataframe(cuts_df)
+            try:
+                cuts_df = pd.read_csv(uploaded_file)
+                st.write("✅ Imported Cuts from CSV:")
+                st.dataframe(cuts_df)
         
-            for _, row in cuts_df.iterrows():
-                try:
-                    qty = int(row["qty"])
-                    length_str = str(row["cut"]).strip()
-                    length = parse_length(length_str)
-                    if length > stock_length:
-                        invalid_cuts.append((length_str, length))
-                    else:
-                        cuts.extend([length] * qty)
-                except Exception as e:
-                    st.warning(f"Could not parse CSV row: {row} ({e})")
+                for _, row in cuts_df.iterrows():
+                    try:
+                        qty = int(row["qty"])
+                        length_str = str(row["cut"]).strip()
+                        length = parse_length(length_str)
+                        if length > stock_length:
+                            invalid_cuts.append((length_str, length))
+                        else:
+                            cuts.extend([length] * qty)
+                    except Exception as e:
+                        st.warning(f"Could not parse CSV row: {row} ({e})")
+        
+            except Exception as e:
+                st.error(f"Failed to read uploaded CSV: {e}")
         
         else:
-            # manual text input mode
+            # fallback to manual text input
             for line in cuts_input.strip().splitlines():
                 if not line.strip():
                     continue
@@ -205,10 +212,14 @@ if st.button("Optimize"):
                 except Exception as e:
                     st.warning(f"Could not parse line: '{line.strip()}' ({e})")
         
-                 if invalid_cuts:
-                    st.warning(f"The following cuts were longer than the stock length "f"({format_feet_inches(stock_length)}) and were omitted:")
-                    for text, val in invalid_cuts:
-                        st.text(f"  - {text} ({format_feet_inches(val)})")
+        # handle oversize warnings
+        if invalid_cuts:
+            st.warning(
+                f"The following cuts were longer than the stock length "
+                f"({format_feet_inches(stock_length)}) and were omitted:"
+            )
+    for text, val in invalid_cuts:
+        st.text(f"  - {text} ({format_feet_inches(val)})")
         
                 result, waste, used = fit_cuts_to_stock(stock_length, kerf, cuts)
         
