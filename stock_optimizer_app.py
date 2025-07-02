@@ -159,67 +159,56 @@ if st.button("Optimize"):
         stock_length = parse_length(stock_length_input)
         kerf = parse_length(kerf_input)
 
-        # -----------------------------
-        # Load cuts from CSV or text
-        # -----------------------------
+        cuts = []
+        invalid_cuts = []
         
-    cuts = []
-    invalid_cuts = []
-    
-    if uploaded_file:
-        try:
+        if uploaded_file:
+            # Load CSV as DataFrame
             cuts_df = pd.read_csv(uploaded_file)
-            st.write("✅ Imported Cuts from CSV:")
+            
+            st.write("✅ **Imported Cuts from CSV:**")
             st.dataframe(cuts_df)
-    
+            
             for _, row in cuts_df.iterrows():
+                qty = int(row["qty"])
+                length_str = str(row["cut"]).strip()
+                
                 try:
-                    qty = int(row["qty"])
-                    length_str = str(row["cut"]).strip()
+                    length = parse_length(length_str)
+                    
+                    if length > stock_length:
+                        invalid_cuts.append((length_str, length))
+                    else:
+                        cuts.extend([length] * qty)
+                except Exception as e:
+                    st.warning(f"Could not parse cut: '{length_str}' ({e})")
+        
+        else:
+            # Fall back to manual text input
+            for line in cuts_input.strip().splitlines():
+                if not line.strip():
+                    continue
+                qty = 1
+                m = re.match(r"^(\\d+)\\s*[@~]\\s*(.+)$", line.strip())
+                if m:
+                    qty = int(m.group(1))
+                    length_str = m.group(2).strip()
+                else:
+                    length_str = line.strip()
+                
+                try:
                     length = parse_length(length_str)
                     if length > stock_length:
                         invalid_cuts.append((length_str, length))
                     else:
                         cuts.extend([length] * qty)
                 except Exception as e:
-                    st.warning(f"Could not parse CSV row: {row} ({e})")
-    
-        except Exception as e:
-            st.error(f"Failed to read uploaded CSV: {e}")
-    
-    else:
-        # fallback to manual text input
-        for line in cuts_input.strip().splitlines():
-            if not line.strip():
-                continue
-    
-            try:
-                qty = 1
-                m = re.match(r"^(\d+)\s*[@~]\s*(.+)$", line.strip())
-                if m:
-                    qty = int(m.group(1))
-                    length_str = m.group(2).strip()
-                else:
-                    length_str = line.strip()
-    
-                length = parse_length(length_str)
-    
-                if length > stock_length:
-                    invalid_cuts.append((length_str, length))
-                else:
-                    cuts.extend([length] * qty)
-    
-            except Exception as e:
-                st.warning(f"Could not parse line: '{line.strip()}' ({e})")
-    
-    # handle oversize warnings
-    if invalid_cuts:
-        st.warning(
-            f"The following cuts were longer than the stock length "
-            f"({format_feet_inches(stock_length)}) and were omitted:"
-        )
-    for text, val in invalid_cuts:
-        st.text(f"  - {text} ({format_feet_inches(val)})")
+                    st.warning(f"Could not parse line: '{line.strip()}' ({e})")
+        
+                if invalid_cuts:
+                    st.warning(f"The following cuts were longer than the stock length "f"({format_feet_inches(stock_length)}) and were omitted:")
+                    for text, val in invalid_cuts:
+                        st.text(f"  - {text} ({format_feet_inches(val)})")
         
                 result, waste, used = fit_cuts_to_stock(stock_length, kerf, cuts)
         
