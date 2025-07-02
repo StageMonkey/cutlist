@@ -152,7 +152,6 @@ project_name = st.text_input("Project Name")
 stock_length_input = st.text_input("Stock Length", value="12'")
 kerf_input = st.text_input("Kerf", value='1/8"')
 cuts_input = st.text_area("Enter Cuts (one per line, use format 'Qty @ Length')", value="3 @ 4' 3\"\n2 @ 2' 7 1/2\"\n5 @ 5'\n1 @ 8 3/4\"")
-uploaded_file = st.file_uploader("Upload Cuts CSV", type=["csv"])
 
 if st.button("Optimize"):
     try:
@@ -161,77 +160,54 @@ if st.button("Optimize"):
 
         cuts = []
         invalid_cuts = []
-        
-        if uploaded_file:
-            # Load CSV as DataFrame
-            cuts_df = pd.read_csv(uploaded_file)
-            
-            st.write("✅ **Imported Cuts from CSV:**")
-            st.dataframe(cuts_df)
-            
-            for _, row in cuts_df.iterrows():
-                qty = int(row["qty"])
-                length_str = str(row["cut"]).strip()
-                
-                try:
-                    length = parse_length(length_str)
-                    
+        for line in cuts_input.strip().splitlines():
+            if not line.strip():
+                continue
+            try:
+                match = re.match(r"(\d+)\s*[@~]\s*(.*)", line.strip())
+                if match:
+                    qty = int(match.group(1))
+                    length = parse_length(match.group(2))
                     if length > stock_length:
-                        invalid_cuts.append((length_str, length))
+                        invalid_cuts.append((line.strip(), length))
                     else:
                         cuts.extend([length] * qty)
-                except Exception as e:
-                    st.warning(f"Could not parse cut: '{length_str}' ({e})")
-        
-        else:
-            # Fall back to manual text input
-            for line in cuts_input.strip().splitlines():
-                if not line.strip():
-                    continue
-                qty = 1
-                m = re.match(r"^(\\d+)\\s*[@~]\\s*(.+)$", line.strip())
-                if m:
-                    qty = int(m.group(1))
-                    length_str = m.group(2).strip()
                 else:
-                    length_str = line.strip()
-                
-                try:
-                    length = parse_length(length_str)
+                    length = parse_length(line.strip())
                     if length > stock_length:
-                        invalid_cuts.append((length_str, length))
+                        invalid_cuts.append((line.strip(), length))
                     else:
-                        cuts.extend([length] * qty)
-                except Exception as e:
-                    st.warning(f"Could not parse line: '{line.strip()}' ({e})")
-        
-                if invalid_cuts:
-                    st.warning(f"The following cuts were longer than the stock length "f"({format_feet_inches(stock_length)}) and were omitted:")
-                    for text, val in invalid_cuts:
-                        st.text(f"  - {text} ({format_feet_inches(val)})")
-        
-                result, waste, used = fit_cuts_to_stock(stock_length, kerf, cuts)
-        
-                st.markdown(f"### Project: {project_name}")
-                st.markdown(f"**Stock Length**: {format_feet_inches(stock_length)}")
-                st.markdown(f"**Kerf**: {format_feet_inches(kerf)}")
-        
-                st.success(f"Total stock pieces used: {len(result)}")
-                df = pd.DataFrame({
-                    "Stock #": [f"Stock {i+1}" for i in range(len(result))],
-                    "Cuts": [" | ".join(format_feet_inches(c) for c in r) for r in result],
-                    "Used Length": [format_feet_inches(u) for u in used],
-                    "Waste": [format_feet_inches(w) for w in waste],
-                    "Efficiency (%)": [round((u / stock_length) * 100, 2) for u in used]
-                })
-                st.dataframe(df)
-        
-                fig = plot_cutting_layout(result, kerf, stock_length)
-                st.pyplot(fig)
-        
-                csv_header = f"Project: {project_name}\nStock Length: {format_feet_inches(stock_length)}\nKerf: {format_feet_inches(kerf)}\n\n"
-                csv = csv_header + df.to_csv(index=False)
-                st.download_button("Download CSV", csv.encode('utf-8'), "cut_plan.csv", "text/csv")
+                        cuts.append(length)
+            except Exception as e:
+                st.warning(f"Could not parse line: '{line.strip()}' ({e})")
+
+        if invalid_cuts:
+            st.warning(f"The following cuts were longer than the stock length ({format_feet_inches(stock_length)}) and were omitted:")
+            for text, val in invalid_cuts:
+                st.text(f"  - {text} ({format_feet_inches(val)})")
+
+        result, waste, used = fit_cuts_to_stock(stock_length, kerf, cuts)
+
+        st.markdown(f"### Project: {project_name}")
+        st.markdown(f"**Stock Length**: {format_feet_inches(stock_length)}")
+        st.markdown(f"**Kerf**: {format_feet_inches(kerf)}")
+
+        st.success(f"Total stock pieces used: {len(result)}")
+        df = pd.DataFrame({
+            "Stock #": [f"Stock {i+1}" for i in range(len(result))],
+            "Cuts": [" | ".join(format_feet_inches(c) for c in r) for r in result],
+            "Used Length": [format_feet_inches(u) for u in used],
+            "Waste": [format_feet_inches(w) for w in waste],
+            "Efficiency (%)": [round((u / stock_length) * 100, 2) for u in used]
+        })
+        st.dataframe(df)
+
+        fig = plot_cutting_layout(result, kerf, stock_length)
+        st.pyplot(fig)
+
+        csv_header = f"Project: {project_name}\nStock Length: {format_feet_inches(stock_length)}\nKerf: {format_feet_inches(kerf)}\n\n"
+        csv = csv_header + df.to_csv(index=False)
+        st.download_button("Download CSV", csv.encode('utf-8'), "cut_plan.csv", "text/csv")
 
     except Exception as e:
         st.error(f"Error: {e}")
