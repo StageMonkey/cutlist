@@ -195,7 +195,7 @@ if st.button("Optimize"):
         st.success(f"Total stock pieces used: {len(result)}")
         df = pd.DataFrame({
             "Stock #": [f"Stock {i+1}" for i in range(len(result))],
-            "Cuts": [", ".join(format_feet_inches(c) for c in r) for r in result],
+            "Cuts": [" | ".join(format_feet_inches(c) for c in r) for r in result],
             "Used Length": [format_feet_inches(u) for u in used],
             "Waste": [format_feet_inches(w) for w in waste],
             "Efficiency (%)": [round((u / stock_length) * 100, 2) for u in used]
